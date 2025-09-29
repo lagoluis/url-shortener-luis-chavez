@@ -1,0 +1,110 @@
+---
+alwaysApply: true
+---
+# Cursor Rules — URL Shortener with Click Analytics
+
+## Mission (End Goal)
+Build a small, production-style **URL shortener with click analytics** plus a minimal React dashboard.
+Core flow:
+1) Create short link (optional custom slug).
+2) Redirect `/r/:slug` and **record a click** (UTC timestamp + user agent).
+3) Dashboard shows **total clicks** and **daily counts** per link.
+
+Deliver a complete **vertical slice**: clean APIs, simple UI, migrations + seed, and tests for redirect + daily aggregation.
+
+---
+
+## Golden Contracts (Do NOT change unless explicitly instructed)
+- **API base:** `/api/v1`
+- **Routes:**
+  - `POST /api/v1/links` (create; accepts `{ targetUrl, slug? }`)
+  - `GET  /api/v1/links` (list for dashboard)
+  - `GET  /r/:slug` (302 redirect; records click)
+  - `GET  /api/v1/links/:id/analytics/summary?from&to` → `{ total }`
+  - `GET  /api/v1/links/:id/analytics/daily?from&to` → `[{ day: "YYYY-MM-DD", count }]`
+- **Error envelope (always):**
+    { "error": { "code": "STRING_CODE", "message": "Human message", "details": {} } }
+- **Status codes:** `201` create, `302` redirect, `400/422` validation, `404` not found, `409` slug taken.
+- **Time:** store all timestamps in **UTC**.
+
+---
+
+## Tech Railguard (Use only these unless asked)
+- **Backend:** Node 20+, TypeScript, Express, Zod, Prisma, SQLite (default DB), dotenv, cors.
+- **Frontend:** React + Vite + TypeScript, react-router-dom, Recharts.
+- **Tests:** Vitest, Supertest.
+- **No extra deps** without explicit permission.
+
+---
+
+## Data Model
+- `Link(id, slug UNIQUE, target_url, created_at)`
+- `Click(id, link_id FK, ts_utc, user_agent)`
+- Indexes: `links.slug` (unique), `clicks(link_id, ts_utc)`.
+
+**Validation**
+- `targetUrl` **must** be http/https (reject `javascript:`/`data:`).
+- `slug` matches `^[A-Za-z0-9_-]{1,64}$`.
+- `from`/`to` ISO datetimes; default range allowed.
+
+---
+
+## Working Agreement (How to change code)
+- **Small, incremental steps.** Every step compiles, runs, and is **wired into the app** (no dead/orphan files).
+- **Preserve contracts.** Do not alter routes, shapes, or status codes unless explicitly told.
+- **Validation at the edge.** Reject bad inputs with readable messages.
+- **Deterministic seeds/tests.** Avoid flakiness in dates/randomness.
+- **Strict TypeScript.** Avoid `any`; keep functions small and testable.
+
+**Each reply MUST include:**
+1) **Files created/changed** (paths).
+2) **Full contents** of changed files (no ellipses).
+3) **Commands to run** (migrate/seed/build/test/start) for verification.
+4) Notes on side effects (e.g., DB migration needed).
+
+---
+
+## Repo Layout (Target)
+    /url-shortener
+      /backend
+        src/
+          app.ts, server.ts, env.ts
+          routes/ (links.ts, redirect.ts)
+          lib/ (slug.ts, validators.ts, dates.ts)
+          prisma/ (schema.prisma, migrations/)
+          tests/ (*.spec.ts)
+        package.json
+      /frontend
+        src/
+          pages/ (LinksPage.tsx, LinkDetailPage.tsx)
+          components/ (CreateLinkForm.tsx, LinksTable.tsx, ClicksChart.tsx)
+          lib/api.ts
+        package.json
+    README.md
+
+---
+
+## Commands (One-liners)
+- **Backend:** `npm run migrate` → `npm run seed` → `npm run dev` → `npm test`  
+- **Frontend:** `npm run dev` (Vite)  
+- **Env:** backend `.env` (`PORT`, `DATABASE_URL=file:./dev.db`), frontend `.env.local` (`VITE_API_BASE=http://localhost:3000`)
+
+---
+
+## Non-Goals (Defer)
+Auth/multi-tenant, rate limiting, geo/IP or UA parsing, async queues, pre-aggregated rollups, advanced UI/polish, Docker/CI/CD—documented as **next steps**, not implemented now.
+
+---
+
+## Scale Path (Documented Only)
+- Move click recording to async queue for high QPS.
+- Add daily rollups/materialized views + caching.
+- Postgres path: `date_trunc('day', ts_utc)` for grouping; `INSERT ... ON CONFLICT` for idempotency.
+
+---
+
+## Quality Gates (Definition of Done)
+- Create → Redirect → Analytics works end-to-end.
+- Migrations run; **seed** produces a few links and last-7-days clicks.
+- Tests pass: redirect inserts exactly one click; daily aggregation is correct; invalid URL returns readable error.
+- README explains run/test commands and decisions.
